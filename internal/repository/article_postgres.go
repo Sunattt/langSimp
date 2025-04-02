@@ -19,5 +19,11 @@ func (r *ArticlePostgres) createArticle(article *models.Article) (int, error) {
 
 	createArticleQuery := fmt.Sprintf("INSERT INTO %s (chapter_id, title, slug, description, image_url, image_alt, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id;", articleTable)
 
-	err := r.db.QueryRow(createArticleQuery, article.ChapterID, article.Title, article.s)
+	err := r.db.QueryRow(createArticleQuery, article.ChapterID, article.Title, article.Slug, article.Description, article.ImageUrl, article.ImageAlt, article.CreatedAt).Scan(&id)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return id, nil
 }

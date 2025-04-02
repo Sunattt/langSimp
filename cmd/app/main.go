@@ -9,6 +9,7 @@ import (
 	"lang/internal/service"
 	loggers2 "lang/logger"
 	"lang/pkg/database"
+	"lang/pkg/utils"
 	"log"
 	"os"
 	"os/signal"
@@ -38,7 +39,7 @@ func main() {
 		}
 	}(initLogger)
 
-	if err := initConfig(); err != nil {
+	if err := utils.InitConfig(); err != nil {
 		logrus.Fatalf("error initializing config: %s", err.Error())
 	}
 
@@ -85,10 +86,4 @@ func main() {
 		logrus.Fatal("Error occurred while shutting down http server:", err.Error())
 	}
 
-}
-
-func initConfig() error {
-	viper.AddConfigPath("config")
-	viper.SetConfigName("configs")
-	return viper.ReadInConfig()
 }

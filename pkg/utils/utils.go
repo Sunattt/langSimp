@@ -3,6 +3,7 @@ package utils
 import (
 	"encoding/json"
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"net/http"
 	"strconv"
@@ -74,4 +75,10 @@ func GetUserId(w http.ResponseWriter, r *http.Request) (int, error) {
 		logrus.Println(err)
 	}
 	return id, nil
+}
+
+func InitConfig() error {
+	viper.AddConfigPath("config")
+	viper.SetConfigName("configs")
+	return viper.ReadInConfig()
 }
