@@ -1,0 +1,81 @@
+<!-- templates/register.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Registration</title>
+    <style>
+        .photo-options {
+            display: flex;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .photo-option {
+            cursor: pointer;
+            border: 2px solid #ddd;
+            border-radius: 50%;
+            padding: 2px;
+        }
+        .photo-option.selected {
+            border-color: #4CAF50;
+        }
+        .photo-option img {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+    </style>
+</head>
+<body>
+<h1>Registration</h1>
+<form action="/sign-up" method="post" enctype="multipart/form-data">
+    <div>
+        <label>Name user:</label>
+        <input type="text" name="username" required>
+    </div>
+    <div>
+        <label>Email:</label>
+        <input type="email" name="email" required>
+    </div>
+    <div>
+        <label>Password:</label>
+        <input type="password" name="password" required>
+    </div>
+
+    <h3>Choose photo profile:</h3>
+    <div class="photo-options">
+        <label class="photo-option">
+            <input type="radio" name="profile_photo" value="photo1.jpg" checked>
+            <img src="\image\profile_photo\default_photos\other.jpg" alt="Фото 1">
+        </label>
+        <label class="photo-option">
+            <input type="radio" name="profile_photo" value="photo2.jpg">
+            <img src="\image\profile_photo\default_photos\male.jpg" alt="Фото 2">
+        </label>
+        <label class="photo-option">
+            <input type="radio" name="profile_photo" value="photo3.jpg">
+            <img src="\image\profile_photo\default_photos\female.jpg" alt="Фото 3">
+        </label>
+    </div>
+
+    <p>Or upload your:</p>
+    <input type="file" name="custom_photo" accept="image/jpeg,image/png">
+
+    <button type="submit">Sign Up</button>
+</form>
+
+<script>
+    // Добавляем визуальное выделение выбранного фото
+    document.querySelectorAll('input[name="profile_photo"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            document.querySelectorAll('.photo-option').forEach(opt => {
+                opt.classList.remove('selected');
+            });
+            if (this.checked) {
+                this.parentElement.classList.add('selected');
+            }
+        });
+    });
+</script>
+</body>
+</html>

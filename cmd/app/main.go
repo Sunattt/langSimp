@@ -2,13 +2,17 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"go.uber.org/zap"
 	"lang/internal/handler"
 	"lang/internal/repository"
 	"lang/internal/server"
 	"lang/internal/service"
+	loggers2 "lang/logger"
 	"lang/pkg/database"
+	"log"
 	"os"
+	"os/signal"
+	"syscall"
 
 	_ "github.com/lib/pq"
 
@@ -19,13 +23,26 @@ import (
 
 func main() {
 
-	fmt.Println(os.Getenv("DB_PASSWORD"))
 	logrus.SetFormatter(new(logrus.JSONFormatter))
+
+	initLogger, err := loggers2.InitLogger()
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+	log.Println("Init logger")
+	defer func(logger *zap.Logger) {
+		err = logger.Sync()
+		if err != nil {
+			log.Println(err)
+		}
+	}(initLogger)
 
 	if err := initConfig(); err != nil {
 		logrus.Fatalf("error initializing config: %s", err.Error())
 	}
 
+	log.Println("Init configs")
 	if err := godotenv.Load(); err != nil {
 		logrus.Fatalf("Error loading .env file: %s", err.Error())
 	}
@@ -43,22 +60,29 @@ func main() {
 		logrus.Fatalf("error to initialize db: %s", err.Error())
 	}
 
+	log.Println("Connection with DB")
+
 	repo := repository.NewRepository(db)
-	service := service.NewService(repo)
-	handler := handler.NewHandler(service)
+	services := service.NewService(repo)
+	handlers := handler.NewHandler(services, initLogger)
+
+	log.Println("Connection dependencies")
 
 	srv := new(server.Server)
-	err = srv.Run(viper.GetString("port"), handler.InitRoute())
-	if err != nil {
-		logrus.Fatalf("Error occurred while running http server: %s", err.Error())
-	}
+	go func() {
+		if err := srv.Run(viper.GetString("port"), handlers.InitRoutes()); err != nil {
+			logrus.Fatal("Error occurred while running http Server:", err.Error())
+		}
+	}()
+
+	log.Println("TodoApp started")
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
 
 	if err := srv.Shutdown(context.Background()); err != nil {
-		logrus.Printf("error occured on server shutting down: %s", err.Error())
-	}
-	if err := db.Close(); err != nil {
-		logrus.Printf("error occured on db close: %s", err.Error())
-
+		logrus.Fatal("Error occurred while shutting down http server:", err.Error())
 	}
 
 }

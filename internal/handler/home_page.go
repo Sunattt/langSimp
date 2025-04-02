@@ -1,12 +1,12 @@
 package handler
 
 import (
-	"github.com/gin-gonic/gin"
+	"lang/pkg/utils"
 	"net/http"
 )
 
-func (h *Handler) HomePage(c *gin.Context) {
-	c.JSON(http.StatusOK, map[string]interface{}{
-		"home": "this page is for front-end",
-	})
+func (h *Handler) homePage(w http.ResponseWriter, r *http.Request) {
+	response := map[string]string{"home": "this page is for front-end"}
+
+	utils.ResponseServer(response, w)
 }

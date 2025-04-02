@@ -1,60 +1,83 @@
 package handler
 
 import (
-	"lang/pkg/helper"
+	"encoding/json"
 	"lang/pkg/models"
+	"lang/pkg/utils"
 	"net/http"
-
-	"github.com/gin-gonic/gin"
 )
 
-func (h *Handler) sighUp(c *gin.Context) {
-
+// @Summary SignUP
+// @Tags auth
+// @Description create account
+// @ID create account
+// @Accept json
+// @Produce json
+// @Param input body models.User true "account info"
+// @Success 200 {integer} integer 1
+// @Failure 400, 404 {object} errorResponse
+// @Failure 500 {object} errorResponse
+// @Failure default {object} errorResponse
+// @Failure /auth/sign-up [post]
+func (h *Handler) signUp(w http.ResponseWriter, r *http.Request) {
 	var input models.User
 
-	if err := c.BindJSON(&input); err != nil {
-		helper.NewResponseError(c, http.StatusBadRequest, "body is empty!!")
-		return
-	}
-
-	if err := h.service.Authorization.UserDataValidation(input); err != nil {
-		helper.NewResponseError(c, http.StatusBadRequest, err.Error())
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		utils.NewResponseError(w, http.StatusBadRequest, "invalid payload")
+		utils.BadRequest(w, err, h.logger)
 		return
 	}
 
 	id, err := h.service.Authorization.CreateUser(input)
 	if err != nil {
-		helper.NewResponseError(c, http.StatusInternalServerError, err.Error())
+		utils.InternalServerError(w, err, h.logger)
+		utils.NewResponseError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, map[string]interface{}{
+	response := map[string]interface{}{
 		"id": id,
-	})
-
+	}
+	utils.ResponseServer(response, w)
 }
 
-type sighInInput struct {
+type signInInput struct {
 	Username string `json:"username" binding:"required"`
 	Password string `json:"password" binding:"required"`
 }
 
-func (h *Handler) sighIn(c *gin.Context) {
+// @Summary SighIn
+// @Tags Auth
+// @Description
+// @ID login
+// @Accept json
+// @Produce json
+// @Param input body sighInInput true "credentials"
+// @Success 200 {string} string "token"
+// @Failure 400, 404 {object} errorResponse
+// @Failure 500 {object} errorResponse
+// @Failure default {object} errorResponse
+// @Router /auth/sign-in [post]
 
-	var input sighInInput
+func (h *Handler) signIn(w http.ResponseWriter, r *http.Request) {
+	var input signInInput
 
-	if err := c.BindJSON(&input); err != nil {
-		helper.NewResponseError(c, http.StatusBadRequest, "body is empty!")
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		utils.NewResponseError(w, http.StatusBadRequest, "invalid payload")
+		utils.BadRequest(w, err, h.logger)
 		return
 	}
 
 	token, err := h.service.Authorization.GenerationToken(input.Username, input.Password)
 	if err != nil {
-		helper.NewResponseError(c, http.StatusInternalServerError, err.Error())
+		utils.NewResponseError(w, http.StatusInternalServerError, err.Error())
+		utils.InternalServerError(w, err, h.logger)
 		return
 	}
 
-	c.JSON(http.StatusOK, map[string]interface{}{
+	response := map[string]interface{}{
 		"token": token,
-	})
+	}
+
+	utils.ResponseServer(response, w)
 }

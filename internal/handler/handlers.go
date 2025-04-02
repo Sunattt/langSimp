@@ -1,92 +1,80 @@
 package handler
 
 import (
+	"github.com/gorilla/mux"
+	"go.uber.org/zap"
 	"lang/internal/service"
-
-	"github.com/gin-gonic/gin"
+	"net/http"
 )
 
 type Handler struct {
 	service *service.Service
+	logger  *zap.Logger
 }
 
-func NewHandler(service *service.Service) *Handler {
-	return &Handler{service: service}
+func NewHandler(service *service.Service, logger *zap.Logger) *Handler {
+	return &Handler{service: service, logger: logger}
 }
 
-func (h Handler) InitRoute() *gin.Engine {
-	route := gin.New()
+func (h *Handler) InitRoutes() *mux.Router {
+	router := mux.NewRouter()
 
-	auth := route.Group("/auth")
+	router.HandleFunc("/home", h.homePage)
+	auth := router.PathPrefix("/auth").Subrouter()
+	auth.HandleFunc("/sign-in", h.signIn).Methods(http.MethodPost, http.MethodOptions)
+	auth.HandleFunc("/sign-up", h.signUp).Methods(http.MethodPost, http.MethodOptions)
+
+	admin := router.PathPrefix("/admin").Subrouter()
+	admin.Use(h.userIdentity)
+
+	chap := admin.PathPrefix("/grammar").Subrouter()
+	chap.HandleFunc("/", h.createChapter).Methods(http.MethodPost, http.MethodOptions)
+	chap.HandleFunc("/{chapter_id}", h.updateChapter).Methods(http.MethodPut, http.MethodOptions)
+	chap.HandleFunc("/{chapter_id}", h.deleteChapter).Methods(http.MethodDelete, http.MethodOptions)
+
+	article := chap.PathPrefix("/article").Subrouter()
+	article.HandleFunc("/", h.createTopic).Methods(http.MethodPost, http.MethodOptions)
+
+	user := router.PathPrefix("/").Subrouter()
+	user.HandleFunc("/", h.getAllChapters).Methods(http.MethodGet, http.MethodOptions)
+	user.HandleFunc("/{chapter_id}", h.getAllChapters).Methods(http.MethodGet, http.MethodOptions)
+
+	return router
+}
+
+/*
+	api := router.Group("/api")
+
+	//api.GET("/home", h.homePage)
+
 	{
-		auth.POST("/sign-up", h.sighUp)
-		auth.POST("/sign-in", h.sighIn)
-	}
-
-	api := route.Group("api", h.userIdentity)
-	{
-		en := api.Group("/en")
-
-		homePage := en.Group("")
-		homePage.GET("/#")
-
-		grammar := en.Group("/grammar")
+		grammar := api.Group("/grammar")
 		{
-			grammar.POST("/", h.createChapter)
 			grammar.GET("/", h.getAllChapters)
-			grammar.GET("/:id", h.getChapterById)
-			grammar.PUT("/:id", h.updateChapter)
-			grammar.DELETE("/:id", h.deleteChapter)
+			grammar.GET("/:chapter_id", h.getChapterById)
+
+			admin := grammar.Group("/admin", h.adminIdentity)
+			{
+				admin.POST("/", h.createChapter)
+				admin.PUT("/:chapter_id", h.updateChapter)
+				admin.DELETE("/:chapter_id", h.deleteChapter)
+			}
+
+			//topics := grammar.Group("/topics")
+			//{
+			//	topics.GET("/", h.getAll)
+			//	topics.GET("/:topic_id", h.getTopicById)
+			//}
+
 		}
-		// 			chapter := grammer.Group("/:id/:topic")
-		// 			{
-		// 				chapter.POST("/")
-		// 				chapter.GET("/")
-		// 				chapter.GET("/:id")
-		// 				chapter.PUT("/:id")
-		// 				chapter.DELETE("/:id")
-		// 			}
+		//client := api.Group("/user")
+		//{
+		//
+		//}
 
-		// 			article := grammer.Group("/course/:id/:name_topic")
-		// 			{
-		// 				article.POST("/")
-		// 				article.GET("/")
-		// 				article.GET("/:id")
-		// 				article.PUT("/:id")
-		// 				article.DELETE("/:id")
-
-		// 			}
-		// 		}
-
-		// 		vocab := en.Group("/vocab")
-		// 		{
-		// 			vocab.POST("/")
-		// 			vocab.GET("/")
-		// 			vocab.GET("/:id")
-		// 			vocab.PUT("/:id")
-		// 			vocab.DELETE("/:id")
-		// 		}
-
-		// 		panel := en.Group("/dassboard")
-		// 		{
-		// 			profile := panel.Group("/profile")
-		// 			{
-		// 				profile.POST("/")
-		// 				profile.GET("/")
-		// 				profile.GET("/:id")
-		// 				profile.PUT("/:id")
-		// 				profile.DELETE("/:id")
-		// 			}
-
-		// 			marked := panel.Group("/marked")
-		// 			{
-		// 				marked.POST("/")
-		// 				marked.GET("/")
-		// 				marked.GET("/:id")
-		// 				marked.PUT("/:id")
-		// 				marked.DELETE("/:id")
-		// 			}
-		// 		}
 	}
+	//admin's handlers
+
 	return route
 }
+*/

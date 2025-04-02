@@ -1,9 +1,10 @@
 package handler
 
 import (
+	"context"
 	"errors"
-	"github.com/gin-gonic/gin"
-	"lang/pkg/helper"
+	"lang/pkg/utils"
+	"log"
 	"net/http"
 	"strings"
 )
@@ -11,46 +12,96 @@ import (
 const (
 	authorizationHeader = "Authorization"
 	userCtx             = "userId"
+	adminCtx            = "admin"
 )
 
-func (h *Handler) userIdentity(c *gin.Context) {
+func (h *Handler) userIdentity(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		header := r.Header.Get(authorizationHeader)
+		if header == "" {
+			utils.NewResponseError(w, http.StatusUnauthorized, "empty auth header")
+			utils.UnauthorizedError(w, errors.New("Empty error "), h.logger)
+			return
+		}
 
-	header := c.GetHeader(authorizationHeader)
-	if header == "" {
-		helper.NewResponseError(c, http.StatusUnauthorized, "empty auth header")
-		return
-	}
+		headerParts := strings.Split(header, " ")
+		if len(headerParts) > 2 {
+			utils.NewResponseError(w, http.StatusUnauthorized, "invalid auth header")
+			utils.BadRequest(w, errors.New("invalid auth header"), h.logger)
+			return
+		}
 
-	headerParts := strings.Split(header, " ")
-	if len(headerParts) > 2 {
-		helper.NewResponseError(c, http.StatusUnauthorized, "invalid auth header")
-		return
-	}
+		//parse token
+		userId, err := h.service.ParseToken(headerParts[1])
+		if err != nil {
+			utils.NewResponseError(w, http.StatusUnauthorized, "invalid token")
+			utils.BadRequest(w, errors.New("invalid token"), h.logger)
+			return
+		}
 
-	//parse token
-	userId, err := h.service.ParseToken(headerParts[1])
-	if err != nil {
-		helper.NewResponseError(c, http.StatusUnauthorized, "invalid token")
-		return
-	}
+		// Установка userId в контекст запроса
+		ctx := context.WithValue(r.Context(), userCtx, userId)
+		r = r.WithContext(ctx)
+		// Логирование успешной аутентификации
+		log.Printf("User ID %d authenticated successfully.", userId)
 
-	c.Set(userCtx, userId)
+		next.ServeHTTP(w, r)
+	})
 }
 
-func (h *Handler) getUserId(c *gin.Context) (int, error) {
+func (h *Handler) adminIdentity(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		header := r.Header.Get(authorizationHeader)
+		if header == "" {
+			utils.NewResponseError(w, http.StatusUnauthorized, "empty auth header")
+			utils.UnauthorizedError(w, errors.New("Empty error "), h.logger)
+			return
+		}
 
-	id, ok := c.Get(userCtx)
+		headerParts := strings.Split(header, " ")
+		if len(headerParts) > 2 {
+			utils.NewResponseError(w, http.StatusUnauthorized, "invalid auth header")
+			utils.BadRequest(w, errors.New("invalid auth header"), h.logger)
+			return
+		}
+
+		//parse token
+		userId, err := h.service.ParseToken(headerParts[1])
+		if err != nil {
+			utils.NewResponseError(w, http.StatusUnauthorized, "invalid token")
+			return
+		}
+
+		admin, err := h.service.IsAdmin(userId)
+		if err != nil {
+			utils.NewResponseError(w, http.StatusForbidden, err.Error())
+			utils.Forbidden(w, err, h.logger)
+			return
+		}
+
+		if !admin {
+			err := errors.New("Access denied! ")
+			utils.NewResponseError(w, http.StatusForbidden, err.Error())
+			utils.Forbidden(w, err, h.logger)
+			return
+		}
+
+		// Установка userId в контекст запроса
+		ctx := context.WithValue(r.Context(), adminCtx, admin)
+		r = r.WithContext(ctx)
+
+	})
+}
+
+func (h *Handler) getUserId(w http.ResponseWriter, r *http.Request) (int, error) {
+
+	id, ok := r.Context().Value(userCtx).(int)
 	if !ok {
-		helper.NewResponseError(c, http.StatusUnauthorized, "user id not found")
+		utils.NewResponseError(w, http.StatusUnauthorized, "user id not found")
+		utils.UnauthorizedError(w, errors.New("user id not found"), h.logger)
 		return 0, errors.New("user id not found")
 	}
 
-	idInt, ok := id.(int)
-	if !ok {
-		helper.NewResponseError(c, http.StatusInternalServerError, "user id is of invalid type")
-		return 0, errors.New("user id is of invalid type")
-	}
-
-	return idInt, nil
+	return id, nil
 
 }
