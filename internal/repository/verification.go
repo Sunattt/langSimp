@@ -28,3 +28,19 @@ func (r *VerPostgres) GetUserActive(userId int, username string) (bool, error) {
 
 	return active, nil // Возвращаем статус активности пользователя
 }
+
+func (r *VerPostgres) IsAdmin(userId int) (bool, error) {
+	query := fmt.Sprintf("SELECT role FROM %s u WHERE u.id = $1", userTable)
+
+	var roleId int
+	err := r.db.QueryRow(query, userId).Scan(&roleId)
+	if err != nil {
+		return false, err
+	}
+
+	if roleId != 1 {
+		return false, nil
+	}
+
+	return true, nil
+}

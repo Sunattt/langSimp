@@ -26,14 +26,13 @@ func (h *Handler) InitRoutes() *mux.Router {
 
 	admin := router.PathPrefix("/admin").Subrouter()
 	admin.Use(h.userIdentity)
-
 	chap := admin.PathPrefix("/grammar").Subrouter()
 	chap.HandleFunc("/", h.createChapter).Methods(http.MethodPost, http.MethodOptions)
 	chap.HandleFunc("/{chapter_id}", h.updateChapter).Methods(http.MethodPut, http.MethodOptions)
 	chap.HandleFunc("/{chapter_id}", h.deleteChapter).Methods(http.MethodDelete, http.MethodOptions)
 
 	article := chap.PathPrefix("/article").Subrouter()
-	article.HandleFunc("/", h.createTopic).Methods(http.MethodPost, http.MethodOptions)
+	article.HandleFunc("/", h.createArticle).Methods(http.MethodPost, http.MethodOptions)
 
 	user := router.PathPrefix("/").Subrouter()
 	user.HandleFunc("/", h.getAllChapters).Methods(http.MethodGet, http.MethodOptions)

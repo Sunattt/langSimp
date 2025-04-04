@@ -15,6 +15,7 @@ type Authorization interface {
 
 type Verification interface {
 	GetUserActive(userId int, username string) (bool, error)
+	IsAdmin(useId int) (bool, error)
 }
 
 type ChapterPost interface {
