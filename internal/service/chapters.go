@@ -17,8 +17,8 @@ func (s *ChapterService) Create(chap *models.Chapter) (int, error) {
 	return s.repo.Create(chap)
 }
 
-func (s *ChapterService) GetALL() ([]models.Chapter, error) {
-	return s.repo.GetALL()
+func (s *ChapterService) GetALL(landId int) ([]models.Chapter, error) {
+	return s.repo.GetALL(landId)
 }
 
 func (s *ChapterService) GetChapterById(chapterId int) (models.Chapter, error) {
@@ -26,6 +26,10 @@ func (s *ChapterService) GetChapterById(chapterId int) (models.Chapter, error) {
 }
 
 func (s *ChapterService) Update(chapterId int, chap models.UpdateChapter) error {
+	err := chap.Validate()
+	if err != nil {
+		return err
+	}
 	return s.repo.Update(chapterId, chap)
 }
 

@@ -14,6 +14,14 @@ func (s *VerService) GetUserActive(userId int, username string) (bool, error) {
 	return s.repo.GetUserActive(userId, username)
 }
 
+func (s *VerService) IsEmailFree(email string) (bool, error) {
+	return s.repo.IsEmailFree(email)
+}
+
 func (s *VerService) IsAdmin(userId int) (bool, error) {
 	return s.repo.IsAdmin(userId)
+}
+
+func (s *VerService) IsModerator(userId int) (bool, error) {
+	return s.repo.IsModerator(userId)
 }

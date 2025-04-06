@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 //_._._._._._._._._._._._._._._._.Model Chapter _._._._._._._._._._._._._._._._._._.
 
@@ -27,6 +30,16 @@ type Language struct {
 type UpdateChapter struct {
 	Title       *string `json:"title" binding:"request"`
 	Description *string `json:"description" binding:"request"`
+	ImageUrl    *string `json:"image" binding:"required"`
+	ImageAlt    *string `json:"image_alt" binding:"required"`
+	UpdateAt    time.Time
+}
+
+func (chp UpdateChapter) Validate() error {
+	if chp.Title == nil && chp.Description == nil && chp.ImageUrl == nil && chp.ImageAlt == nil {
+		return errors.New("Update structure hasn't any change ")
+	}
+	return nil
 }
 
 type LevelArticle struct {

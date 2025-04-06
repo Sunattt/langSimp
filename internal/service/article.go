@@ -6,10 +6,10 @@ import (
 )
 
 type ArticleService struct {
-	repo repository.ChapterPost
+	repo repository.ArticlePost
 }
 
-func NewArticleService(repo repository.ChapterPost) *ArticleService {
+func NewArticleService(repo repository.ArticlePost) *ArticleService {
 	return &ArticleService{repo: repo}
 }
 

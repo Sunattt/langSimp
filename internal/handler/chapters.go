@@ -37,7 +37,17 @@ type getAllChaptersResponse struct {
 }
 
 func (h *Handler) getAllChapters(w http.ResponseWriter, r *http.Request) {
-	chapters, err := h.service.ChapterPost.GetALL()
+
+	vars := mux.Vars(r)
+	langId, err := strconv.Atoi(vars["id"])
+
+	if err != nil {
+		utils.NewResponseError(w, http.StatusBadRequest, err.Error())
+		utils.BadRequest(w, err, h.logger)
+		return
+	}
+
+	chapters, err := h.service.ChapterPost.GetALL(langId)
 	if err != nil {
 		utils.NewResponseError(w, http.StatusInternalServerError, err.Error())
 		utils.InternalServerError(w, err, h.logger)
@@ -49,7 +59,6 @@ func (h *Handler) getAllChapters(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.ResponseServer(response, w)
-
 }
 
 func (h *Handler) getChapterById(w http.ResponseWriter, r *http.Request) {
@@ -71,17 +80,23 @@ func (h *Handler) getChapterById(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) updateChapter(w http.ResponseWriter, r *http.Request) {
-	id := r.Context().Value(userCtx).(int)
+	vars := mux.Vars(r)
+	chapterId, err := strconv.Atoi(vars["id"])
+
+	if err != nil {
+		utils.NewResponseError(w, http.StatusBadRequest, err.Error())
+		utils.BadRequest(w, err, h.logger)
+		return
+	}
 
 	var input models.UpdateChapter
-
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		utils.NewResponseError(w, http.StatusBadRequest, err.Error())
 		utils.BadRequest(w, err, h.logger)
 		return
 	}
 
-	err := h.service.ChapterPost.Update(id, input)
+	err = h.service.ChapterPost.Update(chapterId, input)
 	if err != nil {
 		utils.NewResponseError(w, http.StatusInternalServerError, err.Error())
 		utils.InternalServerError(w, err, h.logger)
@@ -89,9 +104,25 @@ func (h *Handler) updateChapter(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.ResponseServer(utils.StatusResponse{Status: "ok"}, w)
-
 }
 
 func (h *Handler) deleteChapter(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	chapterId, err := strconv.Atoi(vars["id"])
 
+	if err != nil {
+		utils.NewResponseError(w, http.StatusBadRequest, err.Error())
+		utils.BadRequest(w, err, h.logger)
+		return
+	}
+
+	err = h.service.ChapterPost.Delete(chapterId)
+
+	if err != nil {
+		utils.NewResponseError(w, http.StatusInternalServerError, err.Error())
+		utils.InternalServerError(w, err, h.logger)
+		return
+	}
+
+	utils.ResponseServer(utils.StatusResponse{Status: "ok"}, w)
 }

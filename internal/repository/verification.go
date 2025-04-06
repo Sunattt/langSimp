@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"github.com/jmoiron/sqlx"
 )
@@ -12,6 +13,22 @@ type VerPostgres struct {
 
 func NewVerPostgres(db *sqlx.DB) *VerPostgres {
 	return &VerPostgres{db: db}
+}
+
+func (r *VerPostgres) IsEmailFree(email string) (bool, error) {
+	query := fmt.Sprintf("SELECT COUNT(*) FROM %s u WHERE u.email = $1", userTable)
+
+	var countEmail int
+	err := r.db.QueryRow(query, email).Scan(&countEmail)
+	if err != nil {
+		return false, err
+	}
+
+	if countEmail != 0 {
+		return false, errors.New("email isn't free")
+	}
+
+	return true, nil
 }
 
 func (r *VerPostgres) GetUserActive(userId int, username string) (bool, error) {
@@ -38,7 +55,23 @@ func (r *VerPostgres) IsAdmin(userId int) (bool, error) {
 		return false, err
 	}
 
-	if roleId != 1 {
+	if roleId != 3 {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+func (r *VerPostgres) IsModerator(userId int) (bool, error) {
+	query := fmt.Sprintf("SELECT role FROM %s u WHERE u.id = $1", userTable)
+
+	var roleId int
+	err := r.db.QueryRow(query, userId).Scan(&roleId)
+	if err != nil {
+		return false, err
+	}
+
+	if roleId != 2 {
 		return false, nil
 	}
 
