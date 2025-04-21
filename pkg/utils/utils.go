@@ -16,54 +16,37 @@ type StatusResponse struct {
 	Status string `json:"status"`
 }
 
-func NewResponseError(w http.ResponseWriter, statusCode int, message string) {
-	logrus.Error(message)
+func NewResponseError(w http.ResponseWriter, statusCode int, message string, err error, logger *zap.Logger) {
+	logger.Error(message, zap.Error(err))
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	if err := json.NewEncoder(w).Encode(ErrorResp{Message: message}); err != nil {
-		logrus.Error(err)
-		return
+
+	if encodeErr := json.NewEncoder(w).Encode(ErrorResp{Message: message}); encodeErr != nil {
+		logger.Error("Failed to encode error response", zap.Error(encodeErr))
+		http.Error(w, http.StatusText(statusCode), statusCode)
 	}
 }
 
-func BadRequest(w http.ResponseWriter, err error, logger *zap.Logger) {
-	logger.Info("the user entered incorrect data", zap.Error(err))
-	http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-}
-
-func InternalServerError(w http.ResponseWriter, err error, logger *zap.Logger) {
-	logger.Error(http.StatusText(http.StatusInternalServerError), zap.Error(err))
-	http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-}
-
-func Forbidden(w http.ResponseWriter, err error, logger *zap.Logger) {
-	logger.Info(http.StatusText(http.StatusForbidden), zap.Error(err))
-	http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
-}
-
-func NotFoundErr(w http.ResponseWriter, err error, logger *zap.Logger) {
-	logger.Info(http.StatusText(http.StatusNotFound), zap.Error(err))
-	http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
-}
-
-func ResetContentServerError(w http.ResponseWriter, err error, logger *zap.Logger) {
-	logger.Info(http.StatusText(http.StatusResetContent), zap.Error(err))
-	http.Error(w, http.StatusText(http.StatusResetContent), http.StatusResetContent)
-}
-
-func UnauthorizedError(w http.ResponseWriter, err error, logger *zap.Logger) {
-	logger.Info(http.StatusText(http.StatusUnauthorized), zap.Error(err))
-	http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
-}
-
-func ResponseServer(resp interface{}, w http.ResponseWriter) {
+func ResponseServer(resp interface{}, w http.ResponseWriter, logger *zap.Logger) {
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		NewResponseError(w, http.StatusInternalServerError, err.Error())
-		logrus.Println(err)
+
+	if resp == nil {
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
+
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		NewResponseError(
+			w,
+			http.StatusInternalServerError,
+			"Failed to encode JSON response",
+			err,
+			logger,
+		)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }
 
 func GetUserId(w http.ResponseWriter, r *http.Request) (int, error) {
@@ -71,7 +54,7 @@ func GetUserId(w http.ResponseWriter, r *http.Request) (int, error) {
 
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		NewResponseError(w, http.StatusBadRequest, err.Error())
+		NewResponseError(w, http.StatusBadRequest, "", err, nil)
 		logrus.Println(err)
 	}
 	return id, nil

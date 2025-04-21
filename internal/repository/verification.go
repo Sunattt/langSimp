@@ -1,10 +1,14 @@
 package repository
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	"github.com/jmoiron/sqlx"
+)
+
+const (
+	languageTable = "languages"
+	levelTable    = "grammar_levels"
 )
 
 type VerPostgres struct {
@@ -37,9 +41,6 @@ func (r *VerPostgres) GetUserActive(userId int, username string) (bool, error) {
 	var active bool
 	err := r.db.QueryRow(query, username, userId).Scan(&active)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return false, nil // Пользователь не найден
-		}
 		return false, err // Возвращаем ошибку
 	}
 
@@ -47,19 +48,20 @@ func (r *VerPostgres) GetUserActive(userId int, username string) (bool, error) {
 }
 
 func (r *VerPostgres) IsAdmin(userId int) (bool, error) {
-	query := fmt.Sprintf("SELECT role FROM %s u WHERE u.id = $1", userTable)
+	query := fmt.Sprintf("SELECT role_id FROM %s u WHERE u.id = $1", userTable)
 
 	var roleId int
 	err := r.db.QueryRow(query, userId).Scan(&roleId)
+
 	if err != nil {
 		return false, err
 	}
 
-	if roleId != 3 {
-		return false, nil
+	if roleId == 3 {
+		return true, nil
 	}
 
-	return true, nil
+	return false, nil
 }
 
 func (r *VerPostgres) IsModerator(userId int) (bool, error) {
@@ -73,6 +75,55 @@ func (r *VerPostgres) IsModerator(userId int) (bool, error) {
 
 	if roleId != 2 {
 		return false, nil
+	}
+
+	return true, nil
+}
+
+func (r *VerPostgres) ValidLangCode(langCode string) (int, error) {
+	var langId int
+
+	query := fmt.Sprintf("SELECT language_id FROM %s WHERE code = $1", languageTable)
+
+	_ = r.db.QueryRow(query, langCode).Scan(&langId)
+
+	if langId == 0 {
+		langId = 1
+	}
+	return langId, nil
+}
+
+func (r *VerPostgres) GetLevelId(level string) (int, error) {
+	var id int
+
+	if level == "" {
+		level = "Advanced"
+	}
+
+	query := fmt.Sprintf("SELECT id FROM %s WHERE level = $1", levelTable)
+	err := r.db.QueryRow(query, level).Scan(&id)
+	if err != nil {
+		return 0, errors.New("Error query level not found ")
+	}
+
+	if id == 0 {
+		return 0, errors.New("level not found")
+	}
+
+	return id, nil
+}
+
+func (r *VerPostgres) GetComments(commentId, userId int) (bool, error) {
+	var comment int
+
+	query := fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE id = $1 AND user_id = $2")
+	err := r.db.QueryRow(query, commentId, userId).Scan(&comment)
+	if err != nil {
+		return false, err
+	}
+
+	if comment > 0 {
+		return false, fmt.Errorf("comment %d doesn't exists", comment)
 	}
 
 	return true, nil

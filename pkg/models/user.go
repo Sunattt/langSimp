@@ -29,3 +29,9 @@ type UserSavedArticle struct {
 	ProfileId int
 	TopicId   int
 }
+
+type ErrorResponse struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Error   error
+}

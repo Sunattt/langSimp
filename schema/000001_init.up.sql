@@ -6,10 +6,10 @@ CREATE TABLE roles(
     created_at timestamptz default current_timestamp
 );
 
-INSERT INTO roles (id, role_type, description) VALUES
-    (1, 'client', 'Обычный пользователь приложения'),
-    (2, 'moderator', 'Модератор контента'),
-    (3, 'admin', 'Администратор системы');
+INSERT INTO roles (role_type, description) VALUES
+    ( 'client', 'Обычный пользователь приложения'),
+    ( 'moderator', 'Модератор контента'),
+    ( 'admin', 'Администратор системы');
 
 INSERT INTO user_photos (path, is_default) VALUES
     ('\image\profile_photo\default_photos\other.jpg', TRUE),
@@ -74,7 +74,7 @@ CREATE TABLE articles (
     article_id SERIAL PRIMARY KEY,
     chapter_id INTEGER REFERENCES chapters(chapter_id) ON DELETE CASCADE,
     title VARCHAR(100) NOT NULL,
-    slug VARCHAR(100) NOT NULL UNIQUE,
+    level_id int REFERENCES grammar_levels (id) not null,
     description TEXT,
     image_url VARCHAR(255),
     image_alt TEXT,
@@ -95,8 +95,8 @@ INSERT INTO grammar_levels(level) VALUES
 
 CREATE TABLE grammar_contents (
     id SERIAL PRIMARY KEY,
-    article_id INTEGER REFERENCES articles(article_id) ON DELETE CASCADE,
-    level_id INTEGER REFERENCES grammar_levels(id),
+    article_id INTEGER REFERENCES articles(article_id) ON DELETE CASCADE not null,
+    level_id INTEGER REFERENCES grammar_levels(id) not null,
     explanation TEXT NOT NULL,
     structure TEXT,
     examples JSONB,
@@ -136,7 +136,8 @@ CREATE TABLE grammar_exercises (
     correct_answer TEXT NOT NULL,
     explanation TEXT,
     difficulty INTEGER CHECK (difficulty BETWEEN 1 AND 3),
-    help TEXT
+    help TEXT,
+    active boolean default true
 );
 
 CREATE TABLE grammar_comments (
@@ -176,15 +177,6 @@ CREATE TABLE user_saved_articles (
 );
 ------------------------------------------------Vocabulary--------------------------------------------------------
 /*
-CREATE TABLE dictionary_entries (
-   entry_id BIGSERIAL PRIMARY KEY,
-   dict_id BIGINT REFERENCES dictionaries(dict_id) ON DELETE CASCADE,
-   source_word TEXT NOT NULL,
-   target_word TEXT NOT NULL,
-   examples TEXT,
-   difficulty_level SMALLINT CHECK (difficulty_level BETWEEN 1 AND 5),
-   UNIQUE(dict_id, source_word)
-);
 
 CREATE TABLE book_highlights (
    highlight_id BIGSERIAL PRIMARY KEY,
@@ -196,6 +188,17 @@ CREATE TABLE book_highlights (
    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 */
+----------------------------------------------------------------------------------------------------------------------------
+
+CREATE TABLE VocabularyWord (
+    word_id BIGSERIAL primary key,
+
+);
+
+
+
+
+
 ---------------------------------------Добавления индекса для ускорения запросов-------------------------------------------------------------
 
 CREATE INDEX idx_grammar_articles_chapter_id ON articles(chapter_id);

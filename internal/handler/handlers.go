@@ -8,11 +8,11 @@ import (
 )
 
 type Handler struct {
-	service *service.Service
+	service *service.Ser
 	logger  *zap.Logger
 }
 
-func NewHandler(service *service.Service, logger *zap.Logger) *Handler {
+func NewHandler(service *service.Ser, logger *zap.Logger) *Handler {
 	return &Handler{service: service, logger: logger}
 }
 
@@ -26,16 +26,20 @@ func (h *Handler) InitRoutes() *mux.Router {
 	auth.HandleFunc("/sign-up", h.signUp).Methods(http.MethodPost, http.MethodOptions)
 
 	languageCode := router.PathPrefix("/{lang_code}").Subrouter()
+	languageCode.Use(h.langMiddleware)
+
+	languageCode.HandleFunc("/home", h.homePage).Methods(http.MethodGet, http.MethodOptions)
 
 	grammarUser := languageCode.PathPrefix("/grammar").Subrouter()
 	grammarUser.HandleFunc("/", h.getAllChapters).Methods(http.MethodGet, http.MethodOptions)
 	grammarUser.HandleFunc("/{chapter_id}", h.getChapterById).Methods(http.MethodGet, http.MethodOptions)
 
-	articleUser := grammarUser.PathPrefix("/{chapter_id}/{title_chapter}").Subrouter()
-	articleUser.HandleFunc("/", h.getAllChapters).Methods(http.MethodGet, http.MethodOptions)
+	articleUser := grammarUser.PathPrefix("/{chapter_id}/articles").Subrouter()
+	articleUser.HandleFunc("/", h.getAllArticles).Methods(http.MethodGet, http.MethodOptions)
 	articleUser.HandleFunc("/{article_id}", h.getArticleById).Methods(http.MethodGet, http.MethodOptions)
 
-	_ = languageCode.PathPrefix("/{course_id}").Subrouter()
+	courseUser := languageCode.PathPrefix("/course/{article_id}/{level_content}").Subrouter()
+	courseUser.HandleFunc("/", h.getCourse).Methods(http.MethodGet, http.MethodOptions)
 
 	//-------------------------------------------------Client Pouters------------------------------------------------------------------------
 
@@ -46,16 +50,17 @@ func (h *Handler) InitRoutes() *mux.Router {
 	grammarClient.HandleFunc("/", h.getAllChapters).Methods(http.MethodGet, http.MethodOptions)
 	grammarClient.HandleFunc("/{chapter_id}", h.getChapterById).Methods(http.MethodGet, http.MethodOptions)
 
-	articleClient := grammarUser.PathPrefix("/{chapter_id}/{title_chapter}").Subrouter()
-	articleClient.HandleFunc("/", h.getAllChapters).Methods(http.MethodGet, http.MethodOptions)
+	articleClient := grammarUser.PathPrefix("/{chapter_id}/articles").Subrouter()
+	articleClient.HandleFunc("/", h.getAllArticles).Methods(http.MethodGet, http.MethodOptions)
 	articleClient.HandleFunc("/{article_id}", h.getArticleById).Methods(http.MethodGet, http.MethodOptions)
 
-	_ = languageCode.PathPrefix("/{course_id}").Subrouter()
+	courseClient := client.PathPrefix("/course/{article_id}/{level_content}").Subrouter()
+	courseClient.HandleFunc("/", h.getCourse).Methods(http.MethodGet, http.MethodOptions)
 
 	//--------------------------------------------Moderator Routers-------------------------------------------------------------------------------------
 
-	moderator := languageCode.PathPrefix("/admin").Subrouter()
-	moderator.Use(h.adminIdentity)
+	moderator := languageCode.PathPrefix("/moder").Subrouter()
+	moderator.Use(h.moderIdentity)
 
 	grammarModer := moderator.PathPrefix("/grammar").Subrouter()
 	grammarModer.HandleFunc("/", h.createChapter).Methods(http.MethodPost, http.MethodOptions)
@@ -64,14 +69,18 @@ func (h *Handler) InitRoutes() *mux.Router {
 	grammarModer.HandleFunc("/{chapter_id}", h.updateChapter).Methods(http.MethodPut, http.MethodOptions)
 	grammarModer.HandleFunc("/{chapter_id}", h.deleteChapter).Methods(http.MethodDelete, http.MethodOptions)
 
-	articleModer := grammarModer.PathPrefix("/{chapter_id}/{title_chapter}").Subrouter()
+	articleModer := grammarModer.PathPrefix("/{chapter_id}/articles").Subrouter()
 	articleModer.HandleFunc("/", h.createArticle).Methods(http.MethodPost, http.MethodOptions)
-	articleModer.HandleFunc("/", h.getAllChapters).Methods(http.MethodGet, http.MethodOptions)
+	articleModer.HandleFunc("/", h.getAllArticles).Methods(http.MethodGet, http.MethodOptions)
 	articleModer.HandleFunc("/{article_id}", h.getArticleById).Methods(http.MethodGet, http.MethodOptions)
-	articleModer.HandleFunc("/{chapter_id}", h.updateChapter).Methods(http.MethodPut, http.MethodOptions)
+	articleModer.HandleFunc("/{chapter_id}", h.updateArticle).Methods(http.MethodPut, http.MethodOptions)
 	articleModer.HandleFunc("/{chapter_id}", h.deleteArticle).Methods(http.MethodDelete, http.MethodOptions)
 
-	_ = moderator.PathPrefix("/{course_id}").Subrouter()
+	courseModer := moderator.PathPrefix("/course/{article_id}/{level_content}").Subrouter()
+	courseModer.HandleFunc("/", h.createCourse).Methods(http.MethodPost, http.MethodOptions)
+	courseModer.HandleFunc("/", h.getCourse).Methods(http.MethodGet, http.MethodOptions)
+	courseModer.HandleFunc("/{content_id}", h.updateCourse).Methods(http.MethodPut, http.MethodOptions)
+	courseModer.HandleFunc("/{content_id}", h.deleteArticle).Methods(http.MethodDelete, http.MethodOptions)
 
 	//----------------------------------------ADMIN ROUTERS!!!!-----------------------------------------------------------------
 	admin := languageCode.PathPrefix("/admin").Subrouter()
@@ -84,51 +93,18 @@ func (h *Handler) InitRoutes() *mux.Router {
 	grammarAdmin.HandleFunc("/{chapter_id}", h.updateChapter).Methods(http.MethodPut, http.MethodOptions)
 	grammarAdmin.HandleFunc("/{chapter_id}", h.deleteChapter).Methods(http.MethodDelete, http.MethodOptions)
 
-	articleAdmin := grammarAdmin.PathPrefix("/{chapter_id}/{title_chapter}").Subrouter()
+	articleAdmin := grammarAdmin.PathPrefix("/{chapter_id}/articles").Subrouter()
 	articleAdmin.HandleFunc("/", h.createArticle).Methods(http.MethodPost, http.MethodOptions)
-	articleAdmin.HandleFunc("/", h.getAllChapters).Methods(http.MethodGet, http.MethodOptions)
+	articleAdmin.HandleFunc("/", h.getAllArticles).Methods(http.MethodGet, http.MethodOptions)
 	articleAdmin.HandleFunc("/{article_id}", h.getArticleById).Methods(http.MethodGet, http.MethodOptions)
-	articleAdmin.HandleFunc("/{chapter_id}", h.updateChapter).Methods(http.MethodPut, http.MethodOptions)
-	articleAdmin.HandleFunc("/{chapter_id}", h.deleteArticle).Methods(http.MethodDelete, http.MethodOptions)
+	articleAdmin.HandleFunc("/{article_id}", h.updateArticle).Methods(http.MethodPut, http.MethodOptions)
+	articleAdmin.HandleFunc("/{article_id}", h.deleteArticle).Methods(http.MethodDelete, http.MethodOptions)
 
-	_ = admin.PathPrefix("/{course_id}").Subrouter()
+	course := admin.PathPrefix("/course/{article_id}/{level_content}").Subrouter()
+	course.HandleFunc("/", h.createCourse).Methods(http.MethodPost, http.MethodOptions)
+	course.HandleFunc("/", h.getCourse).Methods(http.MethodGet, http.MethodOptions)
+	course.HandleFunc("/{content_id}", h.updateCourse).Methods(http.MethodPut, http.MethodOptions)
+	course.HandleFunc("/{content_id}", h.deleteArticle).Methods(http.MethodDelete, http.MethodOptions)
 
 	return router
 }
-
-/*
-	api := router.Group("/api")
-
-	//api.GET("/home", h.homePage)
-
-	{
-		grammar := api.Group("/grammar")
-		{
-			grammar.GET("/", h.getAllChapters)
-			grammar.GET("/:chapter_id", h.getChapterById)
-
-			admin := grammar.Group("/admin", h.adminIdentity)
-			{
-				admin.POST("/", h.createChapter)
-				admin.PUT("/:chapter_id", h.updateChapter)
-				admin.DELETE("/:chapter_id", h.deleteChapter)
-			}
-
-			//topics := grammar.Group("/topics")
-			//{
-			//	topics.GET("/", h.getAll)
-			//	topics.GET("/:topic_id", h.getTopicById)
-			//}
-
-		}
-		//client := api.Group("/user")
-		//{
-		//
-		//}
-
-	}
-	//admin's handlers
-
-	return route
-}
-*/

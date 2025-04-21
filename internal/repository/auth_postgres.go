@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"lang/pkg/models"
@@ -72,6 +73,13 @@ func (r *AuthPostgres) GetUser(username, password string) (models.User, error) {
 
 	query := fmt.Sprintf("SELECT id FROM %s WHERE username = $1 AND  password_hash = $2", userTable)
 	err := r.db.Get(&user, query, username, password)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) { // Если записи нет в БД
+			return user, errors.New("user not found") // Возвращаем нашу кастомную ошибку
+		}
 
-	return user, err
+		return user, err
+	}
+
+	return user, nil
 }

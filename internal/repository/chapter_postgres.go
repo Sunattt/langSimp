@@ -24,13 +24,13 @@ const (
 )
 
 func (r *ChapterPostgres) Create(chapter *models.Chapter) (int, error) {
-	tx, err := r.db.Begin() // Исправлено с txt на tx
+	tx, err := r.db.Begin()
 	if err != nil {
 		return 0, fmt.Errorf("error with begin transaction: %w", err)
 	}
 
 	defer func() {
-		if err != nil { // Проверяем, была ли ошибка, чтобы выполнить Rollback
+		if err != nil {
 			if rbErr := tx.Rollback(); rbErr != nil {
 				log.Printf("error while rollback transaction: %v", rbErr)
 			}
@@ -38,9 +38,10 @@ func (r *ChapterPostgres) Create(chapter *models.Chapter) (int, error) {
 	}()
 
 	var count int
-	query := fmt.Sprintf("SELECT COUNT(*) FROM %s ar INNER JOIN %s chp ON ar.chapter_id = chp.chapter_id WHERE ar.active = true", articleTable, chapterTable)
-
+	query := fmt.Sprintf("SELECT COUNT(*) FROM %s ar INNER JOIN %s chp ON ar.chapter_id = chp.chapter_id WHERE ar.active = true AND ar.chapter_id = 1", articleTable, chapterTable)
+	fmt.Println(2)
 	if err := tx.QueryRow(query).Scan(&count); err != nil {
+
 		log.Println("while counting articles in chapter:", err.Error())
 		return 0, err
 	}
@@ -55,7 +56,6 @@ func (r *ChapterPostgres) Create(chapter *models.Chapter) (int, error) {
 		log.Println("while saving chapter:", err.Error())
 		return 0, err
 	}
-
 	if err := tx.Commit(); err != nil {
 		log.Println("while committing chapter:", err.Error())
 		return 0, err
@@ -69,6 +69,7 @@ func (r *ChapterPostgres) Update(chapterId int, chp models.UpdateChapter) error 
 	args := make([]interface{}, 0)
 	argId := 1
 
+	// Проверяем поля на обновление и формируем запрос
 	if chp.Title != nil {
 		setValues = append(setValues, fmt.Sprintf("title=$%d", argId))
 		args = append(args, *chp.Title)
@@ -93,40 +94,58 @@ func (r *ChapterPostgres) Update(chapterId int, chp models.UpdateChapter) error 
 		argId++
 	}
 
-	setQuery := strings.Join(setValues, ", ")
-
+	// Установка времени обновления
 	chp.UpdateAt = time.Now()
+	setValues = append(setValues, fmt.Sprintf("updated_at=$%d", argId))
+	args = append(args, chp.UpdateAt)
+	argId++
 
-	query := fmt.Sprintf("UPDATE %s chp SET %s FROM %s WHERE chp.id = $1",
-		chapterTable, setQuery, chapterTable)
+	// Обработка случая, когда нет значений для обновления
+	if len(setValues) == 0 {
+		return fmt.Errorf("no fields to update")
+	}
 
+	// Формирование запроса
+	setQuery := strings.Join(setValues, ", ")
+	query := fmt.Sprintf("UPDATE %s SET %s WHERE chapter_id = $%d", chapterTable, setQuery, argId)
 	args = append(args, chapterId)
 
 	logrus.Debugf("updateQuery: %s", query)
 	logrus.Debugf("args: %v", args)
 
+	// Выполнение запроса
 	_, err := r.db.Exec(query, args...)
-	return err
+	if err != nil {
+		logrus.Errorf("error executing update: %s", err)
+		return err
+	}
+
+	return nil
 
 }
 
 func (r *ChapterPostgres) GetALL(langId int) ([]models.Chapter, error) {
 	var chapters []models.Chapter
-
-	query := fmt.Sprintf("SELECT chp.chapter_id, chp.title, chp.description, chp.image_url, chp.image_alt chp.count_articles FROM %s chp WHERE active = true AND language_id = $2", chapterTable)
+	
+	query := fmt.Sprintf("SELECT chapter_id, language_id, title, description, image_url, image_alt, count_articles FROM %s WHERE active = true AND language_id = $1", chapterTable)
 	err := r.db.Select(&chapters, query, langId)
 
-	return chapters, err
+	if err != nil {
+		return nil, err
+	}
+	return chapters, nil
 }
 
-func (r *ChapterPostgres) GetChapterById(chapterId int) (models.Chapter, error) {
+func (r *ChapterPostgres) GetChapterById(chapterId, langId int) (models.Chapter, error) {
 	var chap models.Chapter
 
-	query := fmt.Sprintf(" SELECT chp.chapter_id, chp.title, chp.description, chp.image_url, chp.image_alt, chp.count_articles FROM %s chp WHERE chp.chapter_id = $1", chapterTable)
+	query := fmt.Sprintf(" SELECT chapter_id, title, description, image_url, image_alt, count_articles FROM %s WHERE chapter_id = $1 AND language_id = $2", chapterTable)
 
-	err := r.db.Get(&chap, query, chapterId)
-
-	return chap, err
+	err := r.db.Get(&chap, query, chapterId, langId)
+	if err != nil {
+		return chap, err
+	}
+	return chap, nil
 }
 
 func (r *ChapterPostgres) Delete(chapterId int) error {

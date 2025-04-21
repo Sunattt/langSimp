@@ -7,6 +7,7 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"lang/internal/repository"
 	"lang/pkg/models"
+	"net/http"
 	"regexp"
 	"time"
 )
@@ -18,51 +19,93 @@ const (
 
 type AuthService struct {
 	repo repository.Authorization
-	ver  Verification
+	ver  repository.Verification
 }
 
 func NewAuthService(repo repository.Authorization, ver repository.Verification) *AuthService {
 	return &AuthService{repo: repo, ver: ver}
 }
 
-func (s *AuthService) CreateUser(user models.User) (int, error) {
+func (s *AuthService) CreateUser(user models.User) (int, models.ErrorResponse) {
+	var errResp models.ErrorResponse
 
-	if ok := IsValidEmail(user.Email); !ok {
-		return 0, errors.New("invalid email")
-	}
-	if len(user.Username) < 3 {
-		return 0, errors.New("username too short")
-	}
-	if user.Gender >= 3 {
-		return 0, errors.New("invalid gender")
-	}
-	if !IsValidBirth(user.Birthday) {
-		return 0, errors.New("invalid birthday")
-	}
-	if !IsValidPassword(user.Password) {
-		return 0, errors.New("invalid password(пароль должен быть из 8 и более символов содержать хоть одну цифру и !, @, #, $, %, ^, &, *. ")
+	// Валидация входных данных
+	switch {
+	case !IsValidEmail(user.Email):
+		errResp = models.ErrorResponse{
+			Code:    http.StatusBadRequest,
+			Message: "Invalid email address",
+		}
+	case len(user.Username) < 3:
+		errResp = models.ErrorResponse{
+			Code:    http.StatusBadRequest,
+			Message: "Username must be at least 3 characters long",
+		}
+	case user.Gender >= 3:
+		errResp = models.ErrorResponse{
+			Code:    http.StatusBadRequest,
+			Message: "Invalid gender value",
+		}
+	case !IsValidBirth(user.Birthday):
+		errResp = models.ErrorResponse{
+			Code:    http.StatusBadRequest,
+			Message: "Invalid birthday date",
+		}
+	case !IsValidPassword(user.Password):
+		errResp = models.ErrorResponse{
+			Code:    http.StatusBadRequest,
+			Message: "Password must be at least 8 characters long and contain at least one number and special character (!@#$%^&*)",
+		}
 	}
 
+	if errResp.Code != 0 {
+		return 0, errResp
+	}
+
+	// Проверка существования языка
 	ok, err := s.repo.CheckLangId(user.Language)
 	if err != nil {
-		return 0, err
+		return 0, models.ErrorResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to validate language",
+			Error:   err,
+		}
 	}
-
 	if !ok {
-		return 0, errors.New("invalid language id")
+		return 0, models.ErrorResponse{
+			Code:    http.StatusBadRequest,
+			Message: "Invalid language ID",
+		}
 	}
 
+	// Проверка уникальности email
 	answer, err := s.repo.IsEmailFree(user.Email)
 	if err != nil {
-		return 0, err
+		return 0, models.ErrorResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to check email availability",
+			Error:   err,
+		}
 	}
 	if answer {
-		return 0, errors.New("User with this email already exists!!! ")
+		return 0, models.ErrorResponse{
+			Code:    http.StatusConflict,
+			Message: "User with this email already exists",
+		}
 	}
 
+	// Хеширование пароля и создание пользователя
 	user.Password = generationPasswordHash(user.Password)
+	userID, err := s.repo.CreateUser(user)
+	if err != nil {
+		return 0, models.ErrorResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to create user",
+			Error:   err,
+		}
+	}
 
-	return s.repo.CreateUser(user)
+	return userID, models.ErrorResponse{}
 }
 
 func generationPasswordHash(password string) string {
@@ -95,33 +138,72 @@ type TokenClaims struct {
 	Username string `json:"username"`
 }
 
-func (s *AuthService) GenerationToken(username, password string) (string, error) {
-	//get user from db
-	user, err := s.repo.GetUser(username, generationPasswordHash(password))
-	if err != nil {
-		return "", err
+func (s *AuthService) GenerationToken(username, password string) (string, models.ErrorResponse) {
+	var errUserNotFound = errors.New("user not found")
+
+	// Валидация входных параметров
+	if username == "" || password == "" {
+		return "", models.ErrorResponse{
+			Code:    http.StatusBadRequest,
+			Message: "Username and password are required",
+		}
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, &TokenClaims{
-		jwt.StandardClaims{
+	// Получаем пользователя из БД
+	hashedPassword := generationPasswordHash(password)
+	user, err := s.repo.GetUser(username, hashedPassword)
+	if err != nil {
+		if errors.Is(err, errUserNotFound) {
+			return "", models.ErrorResponse{
+				Code:    http.StatusUnauthorized,
+				Message: "Invalid username or password",
+			}
+		}
+		return "", models.ErrorResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to get user data",
+			Error:   err,
+		}
+	}
+
+	// Проверяем активность пользователя
+	active, err := s.ver.GetUserActive(user.Id, username)
+	if err != nil {
+		return "", models.ErrorResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to check user status",
+			Error:   err,
+		}
+	}
+
+	if !active {
+		return "", models.ErrorResponse{
+			Code:    http.StatusForbidden,
+			Message: "User account is not active",
+		}
+	}
+
+	// Создаем JWT токен
+	claims := &TokenClaims{
+		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: time.Now().Add(tokenTTl).Unix(),
 			IssuedAt:  time.Now().Unix(),
 		},
-		user.Id,
-		user.Username,
-	})
+		UserId:   user.Id,
+		Username: user.Username,
+	}
 
-	active, err := s.ver.GetUserActive(user.Id, username)
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	signedToken, err := token.SignedString([]byte(signingKey))
 	if err != nil {
-		return "", err
-
+		return "", models.ErrorResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to generate token",
+			Error:   err,
+		}
 	}
 
-	if active == false {
-		return "", errors.New("user is not active")
-	}
-
-	return token.SignedString([]byte(signingKey))
+	return signedToken, models.ErrorResponse{}
 }
 
 func (s *AuthService) ParseToken(accessToken string) (int, error) {

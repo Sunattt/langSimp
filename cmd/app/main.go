@@ -22,6 +22,9 @@ import (
 	"github.com/spf13/viper"
 )
 
+// TODO rating
+// TODO quiz submit
+// TODO
 func main() {
 
 	logrus.SetFormatter(new(logrus.JSONFormatter))

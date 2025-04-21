@@ -8,5 +8,5 @@ import (
 func (h *Handler) homePage(w http.ResponseWriter, r *http.Request) {
 	response := map[string]string{"home": "this page is for front-end"}
 
-	utils.ResponseServer(response, w)
+	utils.ResponseServer(response, w, h.logger)
 }
