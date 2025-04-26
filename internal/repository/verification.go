@@ -128,3 +128,35 @@ func (r *VerPostgres) GetComments(commentId, userId int) (bool, error) {
 
 	return true, nil
 }
+
+func (r *VerPostgres) IsValidChapterId(chapterId int) (bool, error) {
+	var exists bool
+
+	query := fmt.Sprintf(
+		`SELECT EXISTS(SELECT 1 FROM %s WHERE chapter_id = $1 AND active = true)`,
+		chapterTable,
+	)
+
+	err := r.db.QueryRow(query, chapterId).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("failed to check chapter existence: %w", err)
+	}
+
+	return exists, nil
+}
+
+func (r *VerPostgres) IsValidArticleId(chapterId int) (bool, error) {
+	var exists bool
+
+	query := fmt.Sprintf(
+		`SELECT EXISTS(SELECT 1 FROM %s WHERE article_id = $1 AND active = true)`,
+		articleTable,
+	)
+
+	err := r.db.QueryRow(query, chapterId).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("failed to check chapter existence: %w", err)
+	}
+
+	return exists, nil
+}

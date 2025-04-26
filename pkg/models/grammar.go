@@ -16,7 +16,7 @@ type Chapter struct {
 	ImageUrl     string `json:"image_url" binding:"required" db:"image_url"`
 	ImageAlt     string `json:"image_alt" binding:"required" db:"image_alt"`
 	CountArticle int    `json:"count_articles" binding:"required" db:"count_articles"`
-	Active       bool   `binding:"required"`
+	Active       bool   `json:"active" binding:"required" db:"active"`
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
@@ -56,6 +56,7 @@ type Article struct {
 	ImageUrl    string `json:"image_url" binding:"required" db:"image_url"`
 	ImageAlt    string `json:"image_alt" binding:"required" db:"image_alt"`
 	Priority    int
+	Active      bool      `json:"active" binding:"required" db:"active"`
 	LevelId     int       `json:"level_id" binding:"required" db:"level_id"`
 	ChapterID   int       `json:"chapter_id" db:"chapter_id" binding:"required"`
 	CreatedAt   time.Time `json:"created_at" binding:"required" db:"created_at"`
@@ -90,7 +91,7 @@ type GrammarContent struct {
 	Example     any       `json:"examples" binding:"required" db:"examples"`
 	Tips        string    `json:"tips" binding:"required" db:"tips"`
 	Picture     string    `json:"picture" binding:"required" db:"picture"`
-	Active      bool      `json:"active" binding:"required"`
+	Active      bool      `json:"active" binding:"required" db:"active"`
 	CreatedAt   time.Time `json:"created_at" binding:"required" db:"created_at"`
 	UpdatedAt   time.Time
 }
@@ -120,7 +121,7 @@ type GrammarLevel struct {
 }
 
 type GrammarContentExercises struct {
-	Id               int    `json:"_" db:"id"`
+	Id               int    `json:"exercise_id" db:"id"`
 	GrammarContentId int    `json:"grammar_content_id" binding:"required" db:"grammar_content_id"`
 	Question         string `json:"question" binding:"required" db:"question"`
 	QuestionType     string `json:"question_type" binding:"required" db:"question_type"`
@@ -129,7 +130,20 @@ type GrammarContentExercises struct {
 	Explanation      string `json:"explanation" binding:"required" db:"explanation"`
 	Difficulty       int    `json:"difficulty" binding:"required" db:"difficulty"`
 	Help             string `json:"help" binding:"required" db:"help"`
-	Active           bool
+	Active           bool   `json:"active" binding:"required" db:"active"`
+}
+
+type UserAnswer struct {
+	QuizID    int    `json:"quiz_id" binding:"required"`
+	Answer    string `json:"answer" binding:"required"`
+	IsCorrect bool   `json:"is_correct"`
+}
+
+type QuizResponse struct {
+	QuizID      int    `json:"quiz_id" binding:"required"`
+	IsCorrect   bool   `json:"is_correct" binding:"required"`
+	CorrectAns  string `json:"correct_answer" binding:"required"`
+	Explanation string `json:"explanation" binding:"required"`
 }
 
 type UpdateGrammarExercise struct {

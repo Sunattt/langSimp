@@ -26,7 +26,7 @@ func NewContentPostgres(db *sqlx.DB) *ContentPostgres {
 	return &ContentPostgres{db: db}
 }
 
-func (r *ContentPostgres) CreateContent(input *models.GrammarContent) (int, error) {
+func (r *ContentPostgres) CreateContent(input models.GrammarContent) (int, error) {
 	tx, err := r.db.Begin()
 	if err != nil {
 		return 0, fmt.Errorf("error with begin transaction: %w", err)
@@ -171,8 +171,22 @@ func (r *ContentPostgres) UpdateContent(contentId, levelId int, input models.Upd
 
 func (r *ContentPostgres) DeleteContent(contentId, levelId int) error {
 	query := fmt.Sprintf("DELETE FROM %s WHERE id = $1 AND level_id = $2", grammarConTable)
-	err := r.db.QueryRow(query, contentId, levelId)
-	return err.Err()
+
+	result, err := r.db.Exec(query, contentId, levelId)
+	if err != nil {
+		return fmt.Errorf("failed to delete content: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("no content found with id %d and level_id %d", contentId, levelId)
+	}
+
+	return nil
 }
 
 func (r *ContentPostgres) CreateExercise(exr *models.GrammarContentExercises) (int, error) {
@@ -191,10 +205,15 @@ func (r *ContentPostgres) CreateExercise(exr *models.GrammarContentExercises) (i
 
 	var id int
 
-	query := fmt.Sprintf(`INSERT INTO %s (question, option, correct_answer, explanation, difficulty, help)
-		VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`, grammarConTable)
+	exr.Option, err = json.Marshal(exr.Option)
+	if err != nil {
+		return 0, errors.New("error marshaling exercise option")
+	}
 
-	err = tx.QueryRow(query, exr.Question, exr.QuestionType, exr.Option, exr.CorrectAnswer, exr.Explanation,
+	query := fmt.Sprintf(`INSERT INTO %s (grammar_content_id, question, question_type, options, correct_answer, explanation, difficulty, help)
+		VALUES ($1,$2,$3,$4,$5,$6,$7, $8) RETURNING id`, grammarExrTable)
+
+	err = tx.QueryRow(query, exr.GrammarContentId, exr.Question, exr.QuestionType, exr.Option, exr.CorrectAnswer, exr.Explanation,
 		exr.Difficulty, exr.Help).Scan(&id)
 	if err != nil {
 		tx.Rollback()
@@ -211,18 +230,88 @@ func (r *ContentPostgres) CreateExercise(exr *models.GrammarContentExercises) (i
 
 }
 
-func (r *ContentPostgres) GetExerciseById(contentId int) (models.GrammarContentExercises, error) {
-	var exr models.GrammarContentExercises
+func (r *ContentPostgres) GetExerciseById(contentId int) ([]models.GrammarContentExercises, error) {
+	var exr []models.GrammarContentExercises
 
-	query := fmt.Sprintf(`SELECT id, question, question_type, option, correct_answer, explanation, difficulty, help 
-								FROM %s WHERE grammar_content_id = $1`, grammarConTable)
+	query := fmt.Sprintf(`SELECT id, grammar_content_id, question, question_type, options, correct_answer, explanation, difficulty, help 
+								FROM %s WHERE grammar_content_id = $1 AND active = true`, grammarExrTable)
 
-	err := r.db.QueryRowx(query, contentId).StructScan(&exr)
+	rows, err := r.db.Query(query, contentId)
 	if err != nil {
-		return models.GrammarContentExercises{}, fmt.Errorf("error while getting exercise: %w", err)
+		return exr, fmt.Errorf("error while getting exercise: %w", err)
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		var q models.GrammarContentExercises
+		var optionsJSON []byte
+
+		err := rows.Scan(&q.Id, &q.Question, &q.QuestionType, &optionsJSON,
+			&q.CorrectAnswer, &q.Explanation, &q.Difficulty, &q.Help)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan quiz: %w", err)
+		}
+
+		// Десериализация options в зависимости от типа вопроса
+		switch q.QuestionType {
+		case "multiple_choice":
+			var options []string
+			if err := json.Unmarshal(optionsJSON, &options); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal options: %w", err)
+			}
+			q.Option = options
+		case "true_false":
+			var options map[string]bool
+			if err := json.Unmarshal(optionsJSON, &options); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal options: %w", err)
+			}
+			q.Option = options
+		default:
+			q.Option = string(optionsJSON)
+		}
+
+		exr = append(exr, q)
+
+	}
+
+	if len(exr) == 0 {
+		return nil, errors.New("no quizzes found for this content")
 	}
 
 	return exr, nil
+}
+
+func (r *ContentPostgres) CheckAnswers(answers []models.UserAnswer) ([]models.QuizResponse, error) {
+	var responses []models.QuizResponse
+
+	for _, answer := range answers {
+		query := `SELECT correct_answer, explanation 
+                  FROM grammar_exercises 
+                  WHERE id = $1`
+
+		fmt.Println(answer.QuizID, answer.Answer)
+
+		var correctAnswer interface{}
+		var explanation string
+		err := r.db.QueryRow(query, answer.QuizID).Scan(&correctAnswer, &explanation)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get quiz %d: %w", answer.QuizID, err)
+		}
+
+		userAns := fmt.Sprintf("%v", answer.Answer)
+		correctAns := fmt.Sprintf("%v", correctAnswer)
+
+		isCorrect := userAns == correctAns
+		responses = append(responses, models.QuizResponse{
+			QuizID:      answer.QuizID,
+			IsCorrect:   isCorrect,
+			CorrectAns:  correctAns,
+			Explanation: explanation,
+		})
+	}
+
+	return responses, nil
 }
 
 func (r *ContentPostgres) UpdateExercise(contentId int, input models.UpdateGrammarExercise) error {
@@ -365,7 +454,7 @@ func (r *ContentPostgres) UpdateComment(commentId int, input models.UpdateGramma
 	if err != nil {
 		return fmt.Errorf("error while updating comment: %w", err)
 	}
-	
+
 	return nil
 
 }

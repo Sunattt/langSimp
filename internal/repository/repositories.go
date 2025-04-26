@@ -2,6 +2,7 @@ package repository
 
 import (
 	"lang/pkg/models"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 )
@@ -21,6 +22,8 @@ type Verification interface {
 	ValidLangCode(langCode string) (int, error)
 	GetLevelId(level string) (int, error)
 	GetComments(commentId, userId int) (bool, error)
+	IsValidChapterId(chapterId int) (bool, error)
+	IsValidArticleId(articleId int) (bool, error)
 }
 
 type ChapterPost interface {
@@ -40,12 +43,14 @@ type ArticlePost interface {
 }
 
 type ContentPost interface {
-	CreateContent(article *models.GrammarContent) (int, error)
+	CreateContent(article models.GrammarContent) (int, error)
 	GetCourseById(articleId, levelId int) (models.GrammarContent, error)
 	UpdateContent(contentId, levelId int, input models.UpdateContentInput) error
 	DeleteContent(contentId, levelId int) error
 	CreateExercise(article *models.GrammarContentExercises) (int, error)
-	GetExerciseById(articleId int) (models.GrammarContentExercises, error)
+	GetExerciseById(articleId int) ([]models.GrammarContentExercises, error)
+	CheckAnswers(answers []models.UserAnswer) ([]models.QuizResponse, error)
+
 	UpdateExercise(contentId int, input models.UpdateGrammarExercise) error
 	DeleteExercise(contentId int) error
 	CreateComment(userId, contentId int, input models.GrammarComment) (int, error)
@@ -57,12 +62,34 @@ type ContentPost interface {
 	CheckLikeExists(userId, commentId int) (bool, error)
 }
 
+type ProfileRep interface {
+	SaveChapter(chapter, userId int) error
+	SaveArticle(articleId, userId int) error
+	SaveWord(wordId, userId int) error
+	GetSavedChapters(userId int) ([]models.Chapter, error)
+	GetSavedArticles(userId int) ([]models.Article, error)
+	RemoveSavedChapter(userId, chapterId int) error
+	RemoveSavedArticle(userId, articleId int) error
+}
+
+type RatingPost interface {
+	StartSession(userID int) (int, error)
+	EndSession(sessionID, duration int) error
+	GetMonthlyStats(userID int, year, month int) (*models.MonthlyStat, error)
+	UpdateDailyActivity(userID int, date time.Time, minutes int) error
+	UpdateMonthlyStats(userID int, year, month, minutes int) error
+	GetUserRating(userID int) (*models.UserRating, error)
+	GetActivityTime(sessionId int) (time.Time, error)
+}
+
 type Repository struct {
 	Authorization
 	ChapterPost
 	Verification
 	ArticlePost
 	ContentPost
+	ProfileRep
+	RatingPost
 }
 
 func NewRepository(db *sqlx.DB) *Repository {
@@ -72,5 +99,7 @@ func NewRepository(db *sqlx.DB) *Repository {
 		Verification:  NewVerPostgres(db),
 		ArticlePost:   NewArticlePostgres(db),
 		ContentPost:   NewContentPostgres(db),
+		ProfileRep:    NewProfileRepos(db),
+		RatingPost:    NewRatingRepo(db),
 	}
 }

@@ -37,25 +37,17 @@ func (r *ChapterPostgres) Create(chapter *models.Chapter) (int, error) {
 		}
 	}()
 
-	var count int
-	query := fmt.Sprintf("SELECT COUNT(*) FROM %s ar INNER JOIN %s chp ON ar.chapter_id = chp.chapter_id WHERE ar.active = true AND ar.chapter_id = 1", articleTable, chapterTable)
-	fmt.Println(2)
-	if err := tx.QueryRow(query).Scan(&count); err != nil {
-
-		log.Println("while counting articles in chapter:", err.Error())
-		return 0, err
-	}
-
 	var id int
 	chapter.CreatedAt = time.Now()
 
-	createChapterQuery := fmt.Sprintf("INSERT INTO %s (language_id, count_articles, title, description, image_url, image_alt, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING chapter_id", chapterTable)
+	createChapterQuery := fmt.Sprintf("INSERT INTO %s (language_id, title, description, image_url, image_alt, created_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING chapter_id", chapterTable)
 
-	row := tx.QueryRow(createChapterQuery, chapter.LanguageId, count, chapter.Title, chapter.Description, chapter.ImageUrl, chapter.ImageAlt, chapter.CreatedAt)
+	row := tx.QueryRow(createChapterQuery, chapter.LanguageId, chapter.Title, chapter.Description, chapter.ImageUrl, chapter.ImageAlt, chapter.CreatedAt)
 	if err := row.Scan(&id); err != nil {
 		log.Println("while saving chapter:", err.Error())
 		return 0, err
 	}
+
 	if err := tx.Commit(); err != nil {
 		log.Println("while committing chapter:", err.Error())
 		return 0, err
@@ -126,30 +118,45 @@ func (r *ChapterPostgres) Update(chapterId int, chp models.UpdateChapter) error 
 
 func (r *ChapterPostgres) GetALL(langId int) ([]models.Chapter, error) {
 	var chapters []models.Chapter
-	
-	query := fmt.Sprintf("SELECT chapter_id, language_id, title, description, image_url, image_alt, count_articles FROM %s WHERE active = true AND language_id = $1", chapterTable)
-	err := r.db.Select(&chapters, query, langId)
 
+	query := fmt.Sprintf(`
+        SELECT  ch.chapter_id, ch.language_id, ch.title, ch.description, ch.image_url,  ch.image_alt,
+        (SELECT COUNT(*) FROM %s a WHERE a.chapter_id = ch.chapter_id AND a.active = true) AS count_articles
+        FROM %s ch WHERE ch.active = true AND ch.language_id = $1
+        ORDER BY ch.chapter_id`, // Добавлена сортировка для стабильного порядка
+		articleTable,
+		chapterTable)
+
+	err := r.db.Select(&chapters, query, langId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get chapters: %w", err)
 	}
+
+	if len(chapters) == 0 {
+		return []models.Chapter{}, nil // Возвращаем пустой slice вместо nil
+	}
+
 	return chapters, nil
 }
 
 func (r *ChapterPostgres) GetChapterById(chapterId, langId int) (models.Chapter, error) {
 	var chap models.Chapter
 
-	query := fmt.Sprintf(" SELECT chapter_id, title, description, image_url, image_alt, count_articles FROM %s WHERE chapter_id = $1 AND language_id = $2", chapterTable)
+	// Основной запрос для получения данных главы
+	query := fmt.Sprintf(` SELECT c.chapter_id, c.title, c.description, c.image_url, c.image_alt,
+            (SELECT COUNT(*) FROM %s a WHERE a.chapter_id = c.chapter_id AND a.active = true) as count_articles FROM %s c
+        WHERE c.chapter_id = $1 AND c.language_id = $2`, articleTable, chapterTable)
 
 	err := r.db.Get(&chap, query, chapterId, langId)
 	if err != nil {
-		return chap, err
+		return models.Chapter{}, fmt.Errorf("failed to get chapter: %w", err)
 	}
+
 	return chap, nil
 }
 
 func (r *ChapterPostgres) Delete(chapterId int) error {
-	query := fmt.Sprintf("DELETE FROM %s chp WHERE chp.chapter_id = $1", chapterTable)
+	query := fmt.Sprintf("DELETE FROM %s chp WHERE chp.chapter_id = $1 CASCADE;", chapterTable)
 	_, err := r.db.Exec(query, chapterId)
 	return err
 }

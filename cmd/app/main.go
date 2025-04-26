@@ -23,8 +23,9 @@ import (
 )
 
 // TODO rating
-// TODO quiz submit
-// TODO
+// TODO profile
+// TODO vocabulary tasting
+// TODO user CRUD
 func main() {
 
 	logrus.SetFormatter(new(logrus.JSONFormatter))

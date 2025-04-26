@@ -43,3 +43,11 @@ func (s *VerService) GetComments(commentId, userId int) (bool, error) {
 func (s *VerService) CheckLikeExists(userId, commentId int) (bool, error) {
 	return false, nil
 }
+
+func (s *VerService) IsValidChapterId(chapterId int) (bool, error) {
+	return s.repo.IsValidChapterId(chapterId)
+}
+
+func (s *VerService) IsValidArticleId(articleId int) (bool, error) {
+	return s.repo.IsValidArticleId(articleId)
+}

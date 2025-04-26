@@ -26,7 +26,7 @@ func (h *Handler) createCourse(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input *models.GrammarContent
+	var input models.GrammarContent
 
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		utils.NewResponseError(w, http.StatusBadRequest, "Invalid request body format", err, h.logger)
@@ -36,9 +36,9 @@ func (h *Handler) createCourse(w http.ResponseWriter, r *http.Request) {
 	input.LevelId = levelId
 	input.ArticleId = articleID
 
-	id, err := h.service.CoursePost.CreateContent(input)
-	if err != nil {
-		utils.NewResponseError(w, http.StatusInternalServerError, "Failed to create course content", err, h.logger)
+	id, errResp := h.service.CoursePost.CreateContent(input)
+	if errResp.Code != 0 {
+		utils.NewResponseError(w, errResp.Code, errResp.Message, errResp.Error, h.logger)
 		return
 	}
 
@@ -146,37 +146,49 @@ func (h *Handler) createExercise(w http.ResponseWriter, r *http.Request) {
 
 	id, err := h.service.CoursePost.CreateExercise(&input)
 	if err != nil {
-		utils.NewResponseError(w, http.StatusInternalServerError, "failed to update content", err, h.logger)
+		utils.NewResponseError(w, http.StatusInternalServerError, "failed to create", err, h.logger)
 		return
 	}
 
 	utils.ResponseServer(map[string]int{"exercise_id": id}, w, h.logger)
 }
 
-func (h *Handler) getExerciseById(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) getExercises(w http.ResponseWriter, r *http.Request) {
 	contentId, err := strconv.Atoi(mux.Vars(r)["content_id"])
 	if err != nil {
 		utils.NewResponseError(w, http.StatusBadRequest, "Invalid content ID format", err, h.logger)
 		return
 	}
 
-	level := mux.Vars(r)["level_content"]
-	levelId, err := h.service.GetLevelId(level)
-	if err != nil {
-		utils.NewResponseError(w, http.StatusInternalServerError, "invalid level id ", err, h.logger)
-		return
-	}
-
-	exercise, err := h.service.GetExerciseById(contentId, levelId)
+	exercise, err := h.service.GetExerciseById(contentId)
 	if err != nil {
 		utils.NewResponseError(w, http.StatusInternalServerError, "failed with get exercise", err, h.logger)
 		return
 	}
 
-	response := map[string]interface{}{
-		"data": exercise,
+	utils.ResponseServer(map[string]interface{}{
+		"quizzes": exercise,
+		"count":   len(exercise),
+	}, w, h.logger)
+
+}
+
+func (h *Handler) checkAnswers(w http.ResponseWriter, r *http.Request) {
+	var answers []models.UserAnswer
+	if err := json.NewDecoder(r.Body).Decode(&answers); err != nil {
+		utils.NewResponseError(w, http.StatusBadRequest, "Invalid request body", err, h.logger)
+		return
 	}
-	utils.ResponseServer(response, w, h.logger)
+
+	responses, err := h.service.CheckAnswers(answers)
+	if err != nil {
+		utils.NewResponseError(w, http.StatusInternalServerError, "Failed to check answers", err, h.logger)
+		return
+	}
+
+	utils.ResponseServer(map[string]interface{}{
+		"results": responses,
+	}, w, h.logger)
 }
 
 func (h *Handler) updateExercise(w http.ResponseWriter, r *http.Request) {

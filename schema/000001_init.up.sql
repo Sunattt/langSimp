@@ -39,6 +39,8 @@ VALUES ('English', 'en');
 CREATE TABLE users (
     id bigserial primary key ,
     username varchar(200) not null,
+    daily_goal_minutes INTEGER NOT NULL DEFAULT 30,
+    current_streak INTEGER NOT NULL DEFAULT 0,
     email varchar(250) not null unique,
     password_hash varchar(255) not null,
     birthday DATE not null,
@@ -50,6 +52,47 @@ CREATE TABLE users (
     created_at timestamptz default current_timestamp,
     updated_at timestamptz,
     deleted_at timestamptz
+);
+
+-- Сессии активности
+CREATE TABLE monthly_stats (
+    id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    year INT NOT NULL,
+    month INT NOT NULL,
+    total_minutes INT DEFAULT 0,
+    days_activated INT DEFAULT 0,
+    UNIQUE(user_id, year, month)
+);
+
+
+-- Ежемесячная статистика
+CREATE TABLE activity_sessions (
+    id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    start_time TIMESTAMP NOT NULL,
+    end_time TIMESTAMP,
+    duration_minutes INT
+);
+
+-- Изученные слова
+CREATE TABLE learned_words (
+    id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    word_id INT NOT NULL, -- Ссылка на словарь
+    learned_at TIMESTAMPTZ DEFAULT NOW(),
+    mastery_level INT DEFAULT 1 CHECK (mastery_level BETWEEN 1 AND 5)
+);
+
+-- Дневная статистика
+CREATE TABLE daily_activity (
+    id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    date DATE NOT NULL,
+    time_seconds INT NOT NULL CHECK (time_seconds >= 0),
+    words_learned INT DEFAULT 0,
+    goal_achieved BOOLEAN DEFAULT FALSE,
+     UNIQUE (user_id, date)
 );
 
 -- Now update user_photos to add the proper foreign key
@@ -164,7 +207,7 @@ CREATE TABLE user_saved_chapters (
     save_id BIGSERIAL PRIMARY KEY ,
     user_id BIGINT REFERENCES users(id) ON DELETE CASCADE ,
     chapter_id BIGINT REFERENCES chapters(chapter_id) ON DELETE CASCADE,
-    saved boolean default false,
+    saved_at TIMESTAMPTZ ,
     UNIQUE(user_id, chapter_id)
 );
 
@@ -172,7 +215,7 @@ CREATE TABLE user_saved_articles (
     save_id BIGSERIAL PRIMARY KEY ,
     user_id BIGINT REFERENCES users(id) ON DELETE CASCADE ,
     article_id BIGINT REFERENCES articles(article_id) ON DELETE CASCADE,
-    saved boolean default false,
+    saved_at timestamptz,
     UNIQUE(user_id, article_id)
 );
 ------------------------------------------------Vocabulary--------------------------------------------------------
@@ -211,3 +254,5 @@ CREATE INDEX idx_grammar_comments_rating ON grammar_comments(rating);
 CREATE INDEX idx_comment_likes_comment ON comment_likes(comment_id);
 CREATE INDEX idx_comment_likes_user ON comment_likes(user_id);
 CREATE INDEX idx_grammar_comments_likes ON grammar_comments(likes_count);
+CREATE INDEX idx_chapter_id ON chapters(chapter_id) WHERE active = true;
+CREATE INDEX idx_article_id ON articles(article_id) WHERE active = true;

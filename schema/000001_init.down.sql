@@ -1,43 +1,12 @@
----------------------------------------------Grammar_DB-----------------------------------------------------------
-DROP TABLE chapters;
+drop table users, user_saved_chapter, user_saved_article, user_saved_words, grammar_chpater, grammar_article, grammar_exersices, grammar_content CASCADE;
 
-DROP TABLE articles;
-
-DROP TABLE grammar_levels;
-
-DROP TABLE grammar_contents ;
-
-DROP TABLE pronunciation_tables;
-
-DROP TABLE pronunciation_items;
-
-DROP TABLE grammar_exercises;
-
-DROP TABLE languages;
-
-DROP TABLE grammar_comments;
-
-DROP TABLE comment_likes;
-
-DROP table roles;
-
---------------------------------------------User action ------------------------------------------
-
-DROP TABLE user_saved_chapters;
-
-DROP TABLE user_saved_chapters;
-
--- DROP TABLE user_saved_dictionaries;
-
--- DROP TABLE user_saved_books;
-
-DROP TABLE user_photos;
-
-
-DROP table users;
-
-------------------------------------------------Vocabulary--------------------------------------------------------
-
--- DROP TABLE dictionary_entries;
-
--- DROP TABLE book_highlights;
+DROP INDEX IF EXISTS idx_grammar_articles_chapter_id;
+DROP INDEX IF EXISTS idx_grammar_contents_article_id;
+DROP INDEX IF EXISTS idx_grammar_contents_level_id;
+DROP INDEX IF EXISTS idx_pronunciation_tables_content_id;
+DROP INDEX IF EXISTS idx_grammar_comments_content_id;
+DROP INDEX IF EXISTS idx_grammar_comments_user_id;
+DROP INDEX IF EXISTS idx_grammar_comments_rating;
+DROP INDEX IF EXISTS idx_comment_likes_comment;
+DROP INDEX IF EXISTS idx_comment_likes_user;
+DROP INDEX IF EXISTS idx_grammar_comments_likes;

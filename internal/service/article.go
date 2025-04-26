@@ -9,6 +9,7 @@ import (
 
 type ArticleService struct {
 	repo repository.ArticlePost
+	ver  repository.Verification
 }
 
 func NewArticleService(repo repository.ArticlePost) *ArticleService {
@@ -21,6 +22,15 @@ func (s *ArticleService) CreateArticle(article *models.Article) (int, models.Err
 		return 0, models.ErrorResponse{
 			Code:    http.StatusBadRequest,
 			Message: "Article content cannot be empty",
+		}
+	}
+
+	exist, err := s.ver.IsValidChapterId(article.ChapterID)
+	if !exist {
+		return 0, models.ErrorResponse{
+			Code:    http.StatusBadRequest,
+			Message: "Invalid chapter id",
+			Error:   err,
 		}
 	}
 

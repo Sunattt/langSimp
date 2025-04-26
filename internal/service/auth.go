@@ -153,7 +153,7 @@ func (s *AuthService) GenerationToken(username, password string) (string, models
 	hashedPassword := generationPasswordHash(password)
 	user, err := s.repo.GetUser(username, hashedPassword)
 	if err != nil {
-		if errors.Is(err, errUserNotFound) {
+		if err.Error() == errUserNotFound.Error() {
 			return "", models.ErrorResponse{
 				Code:    http.StatusUnauthorized,
 				Message: "Invalid username or password",

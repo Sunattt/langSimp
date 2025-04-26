@@ -28,7 +28,7 @@ func (h *Handler) createChapter(w http.ResponseWriter, r *http.Request) {
 
 	id, err := h.service.ChapterPost.Create(input)
 	if err != nil {
-		utils.NewResponseError(w, http.StatusInternalServerError, "", err, h.logger)
+		utils.NewResponseError(w, http.StatusInternalServerError, "failed to create chapter", err, h.logger)
 		return
 	}
 
@@ -37,6 +37,7 @@ func (h *Handler) createChapter(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.ResponseServer(response, w, h.logger)
+
 }
 
 type getAllChaptersResponse struct {
@@ -63,6 +64,7 @@ func (h *Handler) getAllChapters(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.ResponseServer(response, w, h.logger)
+
 }
 
 func (h *Handler) getChapterById(w http.ResponseWriter, r *http.Request) {
@@ -87,6 +89,7 @@ func (h *Handler) getChapterById(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.ResponseServer(chap, w, h.logger)
+
 }
 
 func (h *Handler) updateChapter(w http.ResponseWriter, r *http.Request) {

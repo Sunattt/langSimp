@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"lang/internal/repository"
 	"lang/pkg/models"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 
 type CourseService struct {
 	repo repository.ContentPost
+	ver  repository.Verification
 }
 
 var (
@@ -22,8 +24,18 @@ func NewCourseService(repo repository.ContentPost) *CourseService {
 	return &CourseService{repo: repo}
 }
 
-func (s *CourseService) CreateContent(input *models.GrammarContent) (int, error) {
-	return s.repo.CreateContent(input)
+func (s *CourseService) CreateContent(input models.GrammarContent) (int, models.ErrorResponse) {
+
+	conId, err := s.repo.CreateContent(input)
+	if err != nil {
+		return 0, models.ErrorResponse{
+			Code:    http.StatusInternalServerError,
+			Message: err.Error(),
+			Error:   err,
+		}
+	}
+
+	return conId, models.ErrorResponse{}
 }
 
 func (s *CourseService) GetCourseById(contentId, levelId int) (models.GrammarContent, error) {
@@ -43,8 +55,30 @@ func (s *CourseService) CreateExercise(article *models.GrammarContentExercises) 
 	return s.repo.CreateExercise(article)
 }
 
-func (s *CourseService) GetExerciseById(articleId, levelId int) (models.GrammarContentExercises, error) {
-	return s.repo.GetExerciseById(articleId)
+func (s *CourseService) GetExerciseById(contentID int) ([]models.GrammarContentExercises, error) {
+	if contentID <= 0 {
+		return nil, errors.New("invalid content ID")
+	}
+
+	exr, err := s.repo.GetExerciseById(contentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get quizzes: %w", err)
+	}
+
+	return exr, nil
+}
+
+func (s *CourseService) CheckAnswers(answers []models.UserAnswer) ([]models.QuizResponse, error) {
+	if len(answers) == 0 {
+		return nil, errors.New("no answers provided")
+	}
+
+	responses, err := s.repo.CheckAnswers(answers)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check answers: %w", err)
+	}
+
+	return responses, nil
 }
 
 func (s *CourseService) UpdateExercise(contentId int, input models.UpdateGrammarExercise) error {

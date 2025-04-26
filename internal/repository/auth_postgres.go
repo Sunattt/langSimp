@@ -46,8 +46,8 @@ func (r *AuthPostgres) CreateUser(user models.User) (int, error) {
 	var id int
 	user.CreatedAt = time.Now()
 
-	query := fmt.Sprintf("INSERT INTO %s (username, gender, language_id, birthday, email, password_hash, created_at) values ($1, $2, $3, $4, $5, $6, $7) RETURNING id", userTable)
-	row := r.db.QueryRow(query, user.Username, user.Gender, user.Language, user.Birthday, user.Email, user.Password, user.CreatedAt)
+	query := fmt.Sprintf("INSERT INTO %s (username, gender, daily_goal_minutes, language_id, birthday, email, password_hash, created_at) values ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id", userTable)
+	row := r.db.QueryRow(query, user.Username, user.Gender, user.DailyGoal, user.Language, user.Birthday, user.Email, user.Password, user.CreatedAt)
 
 	if err := row.Scan(&id); err != nil {
 		return 0, err
